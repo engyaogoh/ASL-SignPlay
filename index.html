@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SignPlay — Learn ASL</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(160deg,#6a5cff 0%,#8f6fff 45%,#b57bff 100%);
+    color:#fff; display:flex; flex-direction:column; align-items:center;
+    min-height:100dvh; padding:16px; overflow-x:hidden;
+  }
+  .app { width:100%; max-width:440px; flex:1; display:flex; flex-direction:column; }
+  h1 { font-size:1.7rem; text-align:center; margin-top:8px; text-shadow:0 2px 8px rgba(0,0,0,.25); }
+  .subtitle { text-align:center; opacity:.85; font-size:.95rem; margin:4px 0 20px; }
+
+  .screen { display:none; flex:1; flex-direction:column; }
+  .screen.active { display:flex; }
+
+  .card {
+    background:rgba(255,255,255,.14); backdrop-filter:blur(10px);
+    border-radius:20px; padding:20px; box-shadow:0 8px 24px rgba(0,0,0,.18);
+  }
+  .btn {
+    display:block; width:100%; border:none; border-radius:16px; padding:16px;
+    font-size:1.1rem; font-weight:700; margin:10px 0; cursor:pointer;
+    background:#fff; color:#6a5cff; transition:transform .12s, box-shadow .12s;
+    box-shadow:0 4px 14px rgba(0,0,0,.2);
+  }
+  .btn:active { transform:scale(.97); }
+  .btn.secondary { background:rgba(255,255,255,.22); color:#fff; }
+  .btn:disabled { opacity:.55; }
+
+  /* Level 1: learn grid */
+  .grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px;
+    overflow-y:auto; flex:1; padding:4px 2px 16px;
+  }
+  .tile {
+    background:rgba(255,255,255,.92); border-radius:14px; padding:8px 4px;
+    text-align:center; cursor:pointer; transition:transform .12s;
+  }
+  .tile:active { transform:scale(.94); }
+  .tile img { width:100%; height:auto; max-height:96px; object-fit:contain; }
+  .tile .ltr { font-size:1.25rem; font-weight:800; color:#5b4bd6; }
+
+  /* modal */
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(30,20,70,.72);
+    z-index:50; align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal { background:#fff; color:#333; border-radius:22px; padding:22px; max-width:340px;
+    width:100%; text-align:center; animation:pop .2s ease; }
+  @keyframes pop { from{transform:scale(.85);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal img { max-height:42dvh; width:auto; max-width:100%; object-fit:contain; margin:10px auto; }
+  .modal .big-l { font-size:2.6rem; font-weight:900; color:#5b4bd6; }
+  .close-x { position:sticky; float:right; margin:-8px -8px 0 0; border:none; background:#eee;
+    width:36px; height:36px; border-radius:50%; font-size:1.1rem; cursor:pointer; color:#555; }
+
+  /* quiz */
+  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
+    font-weight:700; font-size:.95rem; }
+  .progress { height:8px; background:rgba(255,255,255,.25); border-radius:99px; overflow:hidden; margin-bottom:16px; }
+  .progress .fill { height:100%; width:0%; background:#ffd166; border-radius:99px; transition:width .3s; }
+  .sign-stage { background:rgba(255,255,255,.95); border-radius:20px; padding:14px;
+    display:flex; align-items:center; justify-content:center; min-height:42dvh; margin-bottom:16px; }
+  .sign-stage img { max-height:38dvh; max-width:100%; object-fit:contain; }
+  .word-stage { display:flex; gap:6px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .word-stage img { height:15dvh; width:auto; border-radius:8px; }
+  .plus { font-size:1.6rem; font-weight:900; color:#5b4bd6; }
+  .word-hint { text-align:center; font-size:.85rem; opacity:.9; margin-bottom:14px; }
+
+  .opts { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .opt {
+    border:none; border-radius:14px; padding:16px 8px; font-size:1.15rem; font-weight:800;
+    background:#fff; color:#4a3fd0; cursor:pointer; transition:transform .1s;
+    box-shadow:0 3px 10px rgba(0,0,0,.18);
+  }
+  .opt:active { transform:scale(.96); }
+  .opt.correct { background:#2ecc71; color:#fff; animation:pop .25s; }
+  .opt.wrong { background:#ff5d6c; color:#fff; animation:shake .3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+  .feedback { text-align:center; min-height:1.6em; font-weight:700; margin-top:12px; font-size:1.05rem; }
+  .next-btn { margin-top:6px; display:none; }
+
+  /* results */
+  .score-big { font-size:3.4rem; font-weight:900; text-align:center; margin:14px 0; }
+  .stars { text-align:center; font-size:2.4rem; margin-bottom:8px; }
+  .review { background:rgba(255,255,255,.12); border-radius:14px; padding:12px; margin:8px 0;
+    display:flex; align-items:center; gap:10px; font-size:.92rem; }
+  .review img { height:52px; width:auto; }
+  .review .rl { font-weight:900; font-size:1.2rem; min-width:1.4em; text-align:center; }
+
+  .back-btn { background:rgba(255,255,255,.22); color:#fff; border:none; border-radius:12px;
+    padding:10px 18px; font-size:.95rem; font-weight:700; cursor:pointer; margin:0 0 14px; align-self:flex-start; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🤟 SignPlay</h1>
+
+  <!-- HOME -->
+  <div class="screen active" id="scr-home">
+    <p class="subtitle">Learn American Sign Language, one hand at a time ✋</p>
+    <button class="btn" onclick="show('scr-learn')">🌱 Level 1 · Learn the Alphabet</button>
+    <button class="btn" onclick="startQuiz('letters')">🎯 Level 2 · Guess the Letter</button>
+    <button class="btn" onclick="startQuiz('words')">🏆 Level 3 · Guess the Word</button>
+    <div class="card" style="margin-top:14px; font-size:.9rem; line-height:1.5;">
+      <b>How to play:</b><br>
+      🌱 Level 1 — browse all 26 letter signs.<br>
+      🎯 Level 2 — see a sign, pick the right letter (4 choices).<br>
+      🏆 Level 3 — read fingerspelled words letter by letter!
+    </div>
+  </div>
+
+  <!-- LEARN -->
+  <div class="screen" id="scr-learn">
+    <button class="back-btn" onclick="show('scr-home')">‹ Back</button>
+    <div class="grid" id="learn-grid"></div>
+  </div>
+
+  <!-- QUIZ -->
+  <div class="screen" id="scr-quiz">
+    <button class="back-btn" onclick="show('scr-home')">‹ Quit</button>
+    <div class="topbar">
+      <span id="q-progress-label">Q 1/10</span>
+      <span id="q-score">⭐ 0</span>
+    </div>
+    <div class="progress"><div class="fill" id="q-fill"></div></div>
+    <div class="sign-stage" id="stage"></div>
+    <div class="word-hint" id="word-hint" style="display:none"></div>
+    <div class="opts" id="opts"></div>
+    <div class="feedback" id="feedback"></div>
+    <button class="btn next-btn" id="next-btn" onclick="nextQ()">Next ›</button>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="screen" id="scr-result">
+    <div class="stars" id="r-stars"></div>
+    <div class="score-big" id="r-score"></div>
+    <p style="text-align:center; opacity:.9;" id="r-msg"></p>
+    <div style="margin-top:16px;" id="r-review"></div>
+    <button class="btn" onclick="show('scr-home')">🏠 Home</button>
+    <button class="btn secondary" onclick="retry()">🔁 Play Again</button>
+  </div>
+</div>
+
+<!-- letter modal -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <div class="big-l" id="m-letter">A</div>
+    <img id="m-img" src="" alt="ASL sign">
+    <p id="m-tip" style="font-size:.9rem; color:#666;"></p>
+  </div>
+</div>
+
+<script>
+const IMG = l => `img/${l.toLowerCase()}.png`;
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const TIPS = {
+  A:"Fist with thumb on the side", B:"Fingers up, thumb across palm",
+  C:"Curved hand like a C", D:"One finger up, fingers touch thumb",
+  E:"Fingers curled into the palm", F:"Thumb and index make a circle",
+  G:"Index points sideways", H:"Two fingers point sideways",
+  I:"Pinky up", J:"Pinky draws a J in the air",
+  K:"Two fingers up, thumb between", L:"Index up, thumb out",
+  M:"Three fingers over the thumb", N:"Two fingers over the thumb",
+  O:"Curved hand makes an O", P:"K points downward",
+  Q:"G points downward", R:"Crossed fingers",
+  S:"Fist with thumb across fingers", T:"Thumb between index and middle finger",
+  U:"Two fingers up together", V:"Two fingers spread",
+  W:"Three fingers spread", X:"Hooked index finger",
+  Y:"Thumb and pinky out", Z:"Index draws a Z in the air"
+};
+
+/* ---------- Learn mode ---------- */
+const grid = document.getElementById("learn-grid");
+LETTERS.forEach(l => {
+  const t = document.createElement("div");
+  t.className = "tile";
+  t.innerHTML = `<img src="${IMG(l)}" alt="${l}" loading="lazy"><div class="ltr">${l}</div>`;
+  t.onclick = () => openModal(l);
+  grid.appendChild(t);
+});
+
+function openModal(l) {
+  document.getElementById("m-letter").textContent = l;
+  document.getElementById("m-img").src = IMG(l);
+  document.getElementById("m-tip").textContent = TIPS[l] || "";
+  document.getElementById("modal-bg").classList.add("open");
+}
+function closeModal(e) {
+  if (!e || e.target === document.getElementById("modal-bg") || !e.target.classList.contains("modal"))
+    document.getElementById("modal-bg").classList.remove("open");
+}
+
+/* ---------- Quiz engine ---------- */
+const WORDS = ["CAT","DOG","SUN","HI","BYE","BALL","FISH","CAKE","STAR","MILK"];
+const ROUNDS = 10;
+let mode = "letters", round = 0, score = 0, questions = [], wrongPicks = [];
+
+const pick = (a, n) => [...a].sort(() => Math.random() - .5).slice(0, n);
+const shuffle = a => [...a].sort(() => Math.random() - .5);
+
+function show(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function startQuiz(m) {
+  mode = m; round = 0; score = 0; wrongPicks = [];
+  questions = [];
+  if (mode === "letters") {
+    pick(LETTERS, ROUNDS).forEach(correct => questions.push(makeLetterQ(correct)));
+  } else {
+    pick(WORDS, ROUNDS).forEach(w => questions.push(makeWordQ(w)));
+  }
+  show("scr-quiz");
+  renderQ();
+}
+
+function makeLetterQ(correct) {
+  const distract = pick(LETTERS.filter(l => l !== correct), 3);
+  return { type:"letter", correct, options: shuffle([correct, ...distract]) };
+}
+function makeWordQ(word) {
+  // distractors share length/overlap to be challenging but fair
+  const distract = pick(WORDS.filter(w => w !== word && Math.abs(w.length - word.length) <= 1), 3);
+  if (distract.length < 3) distract.push(...pick(WORDS.filter(w => w !== word && !distract.includes(w)), 3 - distract.length));
+  return { type:"word", correct: word, options: shuffle([word, ...distract]) };
+}
+
+function renderQ() {
+  const q = questions[round];
+  document.getElementById("q-progress-label").textContent = `Q ${round+1}/${questions.length}`;
+  document.getElementById("q-score").textContent = `⭐ ${score}`;
+  document.getElementById("q-fill").style.width = `${(round / questions.length) * 100}%`;
+  document.getElementById("feedback").textContent = "";
+  document.getElementById("next-btn").style.display = "none";
+
+  const stage = document.getElementById("stage");
+  const hint = document.getElementById("word-hint");
+  if (q.type === "letter") {
+    hint.style.display = "none";
+    stage.innerHTML = `<img src="${IMG(q.correct)}" alt="ASL sign">`;
+  } else {
+    hint.style.display = "block";
+    hint.textContent = `👆 ${q.correct.length} letters, fingerspelled in order`;
+    stage.innerHTML = `<div class="word-stage">${
+      q.correct.split("").map((l,i) =>
+        `<img src="${IMG(l)}" alt="${i+1}" ${i>0?'style="margin-left:0"':''}>`
+      ).join('<span class="plus">+</span>')
+    }</div>`;
+  }
+
+  const opts = document.getElementById("opts");
+  opts.innerHTML = "";
+  q.options.forEach(o => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.textContent = o;
+    b.onclick = () => answer(o, b);
+    opts.appendChild(b);
+  });
+}
+
+function answer(choice, btn) {
+  const q = questions[round];
+  const buttons = [...document.querySelectorAll(".opt")];
+  buttons.forEach(b => b.disabled = true);
+  const fb = document.getElementById("feedback");
+
+  if (choice === q.correct) {
+    score++;
+    btn.classList.add("correct");
+    fb.textContent = ["Correct! 🎉","Nice! 🌟","Perfect! 💯"][round % 3];
+    fb.style.color = "#c8ffd4";
+  } else {
+    btn.classList.add("wrong");
+    wrongPicks.push({ shown: q, picked: choice });
+    buttons.find(b => b.textContent === q.correct).classList.add("correct");
+    fb.textContent = `The answer was ${q.correct}`;
+    fb.style.color = "#ffd6da";
+  }
+  document.getElementById("q-score").textContent = `⭐ ${score}`;
+  document.getElementById("next-btn").style.display = "block";
+}
+
+function nextQ() {
+  round++;
+  if (round >= questions.length) return results();
+  renderQ();
+}
+
+function results() {
+  show("scr-result");
+  const n = questions.length, pct = score / n;
+  document.getElementById("r-score").textContent = `${score} / ${n}`;
+  document.getElementById("r-stars").textContent =
+    pct === 1 ? "🏆🏆🏆" : pct >= .8 ? "⭐⭐⭐" : pct >= .6 ? "⭐⭐" : "⭐";
+  document.getElementById("r-msg").textContent =
+    pct === 1 ? "Amazing! You're a signing star! 🤟" :
+    pct >= .8 ? "Great job! Almost perfect!" :
+    pct >= .6 ? "Good try — practice Level 1 and come back!" :
+    "Keep practicing! Learning takes time 💪";
+
+  const rv = document.getElementById("r-review");
+  rv.innerHTML = "<div style='font-weight:800; margin:6px 0;'>📋 Review your misses:</div>" +
+    (wrongPicks.length === 0
+      ? "<div class='review'>🎉 Flawless — nothing to review!</div>"
+      : wrongPicks.map(w => {
+          const img = w.shown.type === "letter"
+            ? `<img src="${IMG(w.shown.correct)}">`
+            : `<img src="${IMG(w.shown.correct[0])}" style="height:52px"><span style="font-weight:800;color:#5b4bd6">= ${w.shown.correct}</span>`;
+          return `<div class="review"><span class="rl">❌</span> ${img} <span>(you picked ${w.picked})</span></div>`;
+        }).join(""));
+}
+
+function retry() { startQuiz(mode); }
+</script>
+</body>
+</html>
